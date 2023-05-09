@@ -5,27 +5,82 @@
 //-- Date: 05 April 23
 //-- ############################## 197.92.140.60
 
-use reqwest;
-use reqwest::header::CONTENT_TYPE;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-struct GETAPIResponse {
-    origin: String,
-}
+use std::io;
+use reqwest;
+use reqwest::{Client, Response};
+use regex::Regex;
+// use std::string::String;
+use std::sync::{Arc, Mutex};
+use serde_json::{Result, Value};
+// use serde_json::Value::String;
+use serde_json::Value::String as OtherString;
 
 
 pub(crate) fn main() -> &'static str {
-    let mut ip_address = String::new();
-    println!("Enter your ip address :");
-    std::io::stdin().read_line(&mut ip_address).unwrap();
 
-    let ip_address_validity: bool = validator(&ip_address);
-    if ip_address_validity {
-        let results = get_location(&ip_address);
+    let mut user_option: String = String::new();
+    println!("Do you have a unique IP Address to check? (y/N)");
+    io::stdin()
+        .read_line(&mut user_option)  // .unwrap()
+        .expect("failed to read line");
+
+    user_option = user_option.trim().to_ascii_uppercase();
+    let option = user_option.as_str();
+
+    let mut ip_address: String = String::new();
+    // let _hold;
+
+    match option {
+        "Y" => ip_address =  get_known_ip_address(),
+        "N" => ip_address =  request_unknown_ip_address(),
+        _ => println!("There is an issue here")
+    }
+
+    if ip_address != "false" {
+        let _location = get_location(ip_address);
     }
 
     return "This IP Address is from South Africa";
+}
+
+fn get_known_ip_address() -> String {
+    let mut _ip_address = String::new();
+    println!("Enter your ip address :");
+    std::io::stdin().read_line(&mut _ip_address).unwrap();
+
+    return _ip_address;
+}
+
+#[tokio::main]
+async fn request_unknown_ip_address() -> String {
+
+    let client = Client::new();
+    let ip_res = client
+        .get("http://checkip.dyndns.com/")
+        .send()
+        .await
+        .expect("failed to get response")
+        .text()
+        .await
+        .expect("failed to get payload");
+
+    let pattern  = Regex::new(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}").unwrap();
+
+    let hold = ip_res.as_str().clone();
+
+    if let Some(captured) = pattern.captures(hold) {
+        let _ip_address = captured.get(0).unwrap().as_str().clone();
+        let data = Arc::new(Mutex::new(String::from(_ip_address)));
+        let thread_data = Arc::clone(&data);
+        let value = thread_data.lock().unwrap();
+
+        return value.as_str().parse().unwrap();
+
+    } else {
+        println!("No IP address found.");
+        return  "false".parse().unwrap();
+    }
 }
 
 fn validator(ip_address: &str) -> bool {
@@ -94,19 +149,40 @@ fn validator(ip_address: &str) -> bool {
     return false
 }
 
-async fn get_location(_ip_address: &str) -> Result<(), Box<dyn std::error::Error>>{
-    println!("Getting the data");
+#[tokio::main]
+async fn get_location(ip_address: String) -> &'static str {
 
-    let client = reqwest::Client::new();
-    let resp200 = client.get("https://httpbin.org/ip")
-        .header(CONTENT_TYPE, "application/json")
+    println!("Getting location for IP Address: {}", ip_address);
+
+    let client = Client::new();
+    let response = client
+        .get(format!("http://ip-api.com/json/{}", ip_address))
         .send()
-        .await?
-        .json::<GETAPIResponse>()
-        .await?;
+        .await
+        .expect("failed to get response")
+        .text()
+        .await
+        .expect("failed to get payload");
 
-    println!("{:#?}", resp200);
-    println!("Done..");
 
-    Ok(())
+    // let v: Value = serde_json::from_str(&*location.to_string());
+    // let location: ParsedType = serde_json::from_str(&response).unwrap();
+    // println!("{:?}", location);
+
+    println!("{:?}", serde_json::from_str::<serde_json::Value>(&*String::from(&response)));
+
+    let _held = serde_json::from_str::<serde_json::Value>(&*String::from(&response));
+    println!("{:?}", _held.unwrap());
+
+    // println!("{:?}", _held.unwrap()["country"]);
+
+
+    // println!("City: {:?}, region: {}, country: {}", v["city"], v["region"], v["country"]);
+
+    // let _location_data = location.json::<Response>().unwrap();
+    // println!("{:?}", _location_data);
+
+    println!("{:?}", response);
+
+    return "Stellenbosch";
 }

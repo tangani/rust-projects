@@ -6,9 +6,10 @@
 //-- ##############################
 
 mod ip_locator;
+// use serde::{Deserialize, Serialize};
 
 fn main() {
 
-    let country = ip_locator::main();
-    println!("{}", country);
+    let location = ip_locator::main();
+
 }
